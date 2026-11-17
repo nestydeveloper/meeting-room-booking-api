@@ -11,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -112,6 +113,19 @@ class ReservationServiceImplTest {
         when(reservationRepository.saveAndFlush(any(Reservation.class)))
                 .thenThrow(new DataIntegrityViolationException(
                         "exclusion violation", new SQLException("conflicting key", "23P01")));
+
+        assertThatThrownBy(() -> reservationService.create(request(START, END)))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Sala A");
+    }
+
+    @Test
+    void deadlockOnExclusionIndexReturnsConflict() {
+        when(roomRepository.findById(1L)).thenReturn(Optional.of(ROOM));
+        when(reservationRepository.existsActiveOverlapping(1L, START, END)).thenReturn(false);
+        when(reservationRepository.saveAndFlush(any(Reservation.class)))
+                .thenThrow(new CannotAcquireLockException(
+                        "deadlock", new SQLException("deadlock detected", "40P01")));
 
         assertThatThrownBy(() -> reservationService.create(request(START, END)))
                 .isInstanceOf(ConflictException.class)

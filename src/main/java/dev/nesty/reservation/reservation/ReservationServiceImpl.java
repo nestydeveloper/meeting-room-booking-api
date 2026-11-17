@@ -8,6 +8,7 @@ import dev.nesty.reservation.error.SqlStateErrors;
 import dev.nesty.reservation.room.Room;
 import dev.nesty.reservation.room.RoomRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -83,10 +84,12 @@ public class ReservationServiceImpl implements ReservationService {
     private Reservation saveRegistered(Room room, CreateReservationRequest request) {
         try {
             return reservationRepository.saveAndFlush(newActiveReservation(room, request));
-        } catch (DataIntegrityViolationException ex) {
-            // Two concurrent requests can both pass ensureRoomIsFree; the exclusion constraint
-            // rejects the loser, and the same race can surface as a deadlock on the exclusion
-            // index. Both must be reported as the same conflict as the friendly path.
+        } catch (DataIntegrityViolationException | CannotAcquireLockException ex) {
+            // Two concurrent requests can both pass ensureRoomIsFree. The exclusion constraint
+            // rejects the loser as a data-integrity violation (23P01), and the same race can be
+            // resolved by PostgreSQL as a deadlock on the exclusion index (40P01), which Spring
+            // surfaces as CannotAcquireLockException. Both must be reported as the same conflict
+            // as the friendly path.
             if (SqlStateErrors.is(ex, SqlStateErrors.EXCLUSION_VIOLATION)
                     || SqlStateErrors.is(ex, SqlStateErrors.DEADLOCK_DETECTED)) {
                 throw new ConflictException(bookingConflictMessage(room, request));
