@@ -38,7 +38,7 @@ class RoomControllerTest {
 
     @Test
     void creatingRoomWithBlankNameReturns400WithFieldErrors() throws Exception {
-        mockMvc.perform(post("/rooms")
+        mockMvc.perform(post("/api/v1/rooms")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"   \"}"))
                 .andExpect(status().isBadRequest())
@@ -53,7 +53,7 @@ class RoomControllerTest {
 
     @Test
     void creatingRoomWithMissingNameReturns400() throws Exception {
-        mockMvc.perform(post("/rooms")
+        mockMvc.perform(post("/api/v1/rooms")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
@@ -64,11 +64,11 @@ class RoomControllerTest {
     void creatingValidRoomReturns201WithLocation() throws Exception {
         given(roomService.create(any(RoomRequest.class))).willReturn(new RoomResponse(1L, "Sala A"));
 
-        mockMvc.perform(post("/rooms")
+        mockMvc.perform(post("/api/v1/rooms")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Sala A\"}"))
                 .andExpect(status().isCreated())
-                .andExpect(header().string("Location", endsWith("/rooms/1")))
+                .andExpect(header().string("Location", endsWith("/api/v1/rooms/1")))
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.name").value("Sala A"));
     }
@@ -78,7 +78,7 @@ class RoomControllerTest {
         given(roomService.create(any(RoomRequest.class)))
                 .willThrow(new ConflictException("Room name already exists: Sala A"));
 
-        mockMvc.perform(post("/rooms")
+        mockMvc.perform(post("/api/v1/rooms")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Sala A\"}"))
                 .andExpect(status().isConflict())
@@ -92,7 +92,7 @@ class RoomControllerTest {
     void listingRoomsReturns200WithArray() throws Exception {
         given(roomService.findAll()).willReturn(List.of(new RoomResponse(1L, "Sala A")));
 
-        mockMvc.perform(get("/rooms"))
+        mockMvc.perform(get("/api/v1/rooms"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(1))
                 .andExpect(jsonPath("$[0].name").value("Sala A"));
@@ -103,7 +103,7 @@ class RoomControllerTest {
         given(roomService.update(eq(1L), any(RoomRequest.class)))
                 .willReturn(new RoomResponse(1L, "Sala A - Planta 2"));
 
-        mockMvc.perform(put("/rooms/1")
+        mockMvc.perform(put("/api/v1/rooms/1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Sala A - Planta 2\"}"))
                 .andExpect(status().isOk())
@@ -112,7 +112,7 @@ class RoomControllerTest {
 
     @Test
     void updatingRoomWithBlankNameReturns400() throws Exception {
-        mockMvc.perform(put("/rooms/1")
+        mockMvc.perform(put("/api/v1/rooms/1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"\"}"))
                 .andExpect(status().isBadRequest())
@@ -126,7 +126,7 @@ class RoomControllerTest {
         given(roomService.update(eq(99L), any(RoomRequest.class)))
                 .willThrow(new NotFoundException("Room not found: 99"));
 
-        mockMvc.perform(put("/rooms/99")
+        mockMvc.perform(put("/api/v1/rooms/99")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Sala B\"}"))
                 .andExpect(status().isNotFound())
@@ -135,7 +135,7 @@ class RoomControllerTest {
 
     @Test
     void unreadableJsonBodyReturns400ProblemDetail() throws Exception {
-        mockMvc.perform(post("/rooms")
+        mockMvc.perform(post("/api/v1/rooms")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":"))
                 .andExpect(status().isBadRequest())

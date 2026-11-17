@@ -15,7 +15,7 @@ import java.net.URI;
 import java.util.List;
 
 @RestController
-@RequestMapping("/rooms")
+@RequestMapping("/api/v1/rooms")
 @RequiredArgsConstructor
 public class RoomController {
 
@@ -29,7 +29,7 @@ public class RoomController {
     @PostMapping
     public ResponseEntity<RoomResponse> create(@Valid @RequestBody RoomRequest request) {
         RoomResponse created = roomService.create(request);
-        return ResponseEntity.created(URI.create("/rooms/" + created.id())).body(created);
+        return ResponseEntity.created(URI.create("/api/v1/rooms/" + created.id())).body(created);
     }
 
     @PutMapping("/{id}")
