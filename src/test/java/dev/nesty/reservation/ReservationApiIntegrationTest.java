@@ -15,6 +15,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.matchesPattern;
@@ -64,11 +66,12 @@ class ReservationApiIntegrationTest {
     }
 
     @Test
-    void flywayMigrationCreatedTheSchema() {
-        Integer applied = jdbcTemplate.queryForObject(
-                "select count(*) from flyway_schema_history where success = true", Integer.class);
+    void flywayAppliedEveryMigration() {
+        List<String> appliedVersions = jdbcTemplate.queryForList(
+                "select version from flyway_schema_history where success = true order by installed_rank",
+                String.class);
 
-        assertThat(applied).isEqualTo(1);
+        assertThat(appliedVersions).containsExactly("1", "2");
     }
 
     @Test

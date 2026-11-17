@@ -4,9 +4,11 @@ import dev.nesty.reservation.common.PageResponse;
 import dev.nesty.reservation.error.BadRequestException;
 import dev.nesty.reservation.error.ConflictException;
 import dev.nesty.reservation.error.NotFoundException;
+import dev.nesty.reservation.error.SqlStateErrors;
 import dev.nesty.reservation.room.Room;
 import dev.nesty.reservation.room.RoomRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -33,8 +35,7 @@ public class ReservationServiceImpl implements ReservationService {
         Room room = findRoomOrFail(request.roomId());
         ensureRoomIsFree(room, request);
 
-        Reservation reservation = newActiveReservation(room, request);
-        return toResponse(reservationRepository.save(reservation));
+        return toResponse(saveRegistered(room, request));
     }
 
     @Override
@@ -79,14 +80,33 @@ public class ReservationServiceImpl implements ReservationService {
                 .orElseThrow(() -> new NotFoundException("Room not found: " + roomId));
     }
 
+    private Reservation saveRegistered(Room room, CreateReservationRequest request) {
+        try {
+            return reservationRepository.saveAndFlush(newActiveReservation(room, request));
+        } catch (DataIntegrityViolationException ex) {
+            // Two concurrent requests can both pass ensureRoomIsFree; the exclusion constraint
+            // rejects the loser, and the same race can surface as a deadlock on the exclusion
+            // index. Both must be reported as the same conflict as the friendly path.
+            if (SqlStateErrors.is(ex, SqlStateErrors.EXCLUSION_VIOLATION)
+                    || SqlStateErrors.is(ex, SqlStateErrors.DEADLOCK_DETECTED)) {
+                throw new ConflictException(bookingConflictMessage(room, request));
+            }
+            throw ex;
+        }
+    }
+
     private void ensureRoomIsFree(Room room, CreateReservationRequest request) {
         boolean overlapping = reservationRepository.existsActiveOverlapping(
                 room.getId(), request.startTime(), request.endTime());
 
         if (overlapping) {
-            throw new ConflictException("Room %s is already booked between %s and %s"
-                    .formatted(room.getName(), request.startTime(), request.endTime()));
+            throw new ConflictException(bookingConflictMessage(room, request));
         }
+    }
+
+    private static String bookingConflictMessage(Room room, CreateReservationRequest request) {
+        return "Room %s is already booked between %s and %s"
+                .formatted(room.getName(), request.startTime(), request.endTime());
     }
 
     private Reservation findReservationOrFail(Long id) {

@@ -11,11 +11,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -58,7 +60,7 @@ class ReservationServiceImplTest {
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("Sala A");
 
-        verify(reservationRepository, never()).save(any());
+        verify(reservationRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -68,7 +70,7 @@ class ReservationServiceImplTest {
                 .hasMessageContaining("endTime must be after startTime");
 
         verify(roomRepository, never()).findById(any());
-        verify(reservationRepository, never()).save(any());
+        verify(reservationRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -90,7 +92,7 @@ class ReservationServiceImplTest {
     void creatingFreeReservationPersistsItAsActive() {
         when(roomRepository.findById(1L)).thenReturn(Optional.of(ROOM));
         when(reservationRepository.existsActiveOverlapping(1L, START, END)).thenReturn(false);
-        when(reservationRepository.save(any(Reservation.class))).thenAnswer(invocation -> {
+        when(reservationRepository.saveAndFlush(any(Reservation.class))).thenAnswer(invocation -> {
             Reservation reservation = invocation.getArgument(0);
             reservation.setId(10L);
             return reservation;
@@ -101,6 +103,19 @@ class ReservationServiceImplTest {
 
         assertThat(response).isEqualTo(new ReservationResponse(
                 10L, 1L, "Sala A", "ana@example.com", START, END, ReservationStatus.ACTIVE));
+    }
+
+    @Test
+    void losingAConcurrentBookingRaceReturnsConflict() {
+        when(roomRepository.findById(1L)).thenReturn(Optional.of(ROOM));
+        when(reservationRepository.existsActiveOverlapping(1L, START, END)).thenReturn(false);
+        when(reservationRepository.saveAndFlush(any(Reservation.class)))
+                .thenThrow(new DataIntegrityViolationException(
+                        "exclusion violation", new SQLException("conflicting key", "23P01")));
+
+        assertThatThrownBy(() -> reservationService.create(request(START, END)))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Sala A");
     }
 
     @Test

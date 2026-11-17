@@ -8,8 +8,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,12 +39,12 @@ class RoomServiceImplTest {
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("Sala A");
 
-        verify(roomRepository, never()).save(any());
+        verify(roomRepository, never()).saveAndFlush(any());
     }
 
     @Test
     void creatingRoomPersistsTrimmedName() {
-        when(roomRepository.save(any(Room.class))).thenAnswer(invocation -> {
+        when(roomRepository.saveAndFlush(any(Room.class))).thenAnswer(invocation -> {
             Room room = invocation.getArgument(0);
             room.setId(7L);
             return room;
@@ -51,9 +53,21 @@ class RoomServiceImplTest {
         RoomResponse response = roomService.create(new RoomRequest("  Sala A  "));
 
         ArgumentCaptor<Room> captor = ArgumentCaptor.forClass(Room.class);
-        verify(roomRepository).save(captor.capture());
+        verify(roomRepository).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getName()).isEqualTo("Sala A");
         assertThat(response).isEqualTo(new RoomResponse(7L, "Sala A"));
+    }
+
+    @Test
+    void losingAConcurrentRoomNameRaceThrowsConflict() {
+        when(roomRepository.existsByName("Sala A")).thenReturn(false);
+        when(roomRepository.saveAndFlush(any(Room.class)))
+                .thenThrow(new DataIntegrityViolationException(
+                        "unique violation", new SQLException("duplicate key", "23505")));
+
+        assertThatThrownBy(() -> roomService.create(new RoomRequest("Sala A")))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Sala A");
     }
 
     @Test
@@ -64,7 +78,7 @@ class RoomServiceImplTest {
                 .isInstanceOf(NotFoundException.class)
                 .hasMessageContaining("99");
 
-        verify(roomRepository, never()).save(any());
+        verify(roomRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -82,7 +96,7 @@ class RoomServiceImplTest {
         Room room = new Room(1L, "Sala A");
         when(roomRepository.findById(1L)).thenReturn(Optional.of(room));
         when(roomRepository.existsByNameAndIdNot("Sala A", 1L)).thenReturn(false);
-        when(roomRepository.save(room)).thenReturn(room);
+        when(roomRepository.saveAndFlush(room)).thenReturn(room);
 
         RoomResponse response = roomService.update(1L, new RoomRequest(" Sala A "));
 

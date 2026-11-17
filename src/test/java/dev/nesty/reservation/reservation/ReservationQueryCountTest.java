@@ -16,6 +16,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.time.LocalDateTime;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -56,16 +57,16 @@ class ReservationQueryCountTest {
 
     @Test
     void listingReservationsFetchesRoomsWithThePage() throws Exception {
-        for (int i = 1; i <= 3; i++) {
-            Room room = roomRepository.save(new Room(null, "Sala " + i));
+        IntStream.rangeClosed(1, 3).forEach(index -> {
+            Room room = roomRepository.save(new Room(null, "Sala " + index));
             reservationRepository.save(Reservation.builder()
                     .room(room)
                     .responsible("ana@example.com")
-                    .startTime(DAY.plusHours(i))
-                    .endTime(DAY.plusHours(i).plusMinutes(30))
+                    .startTime(DAY.plusHours(index))
+                    .endTime(DAY.plusHours(index).plusMinutes(30))
                     .status(ReservationStatus.ACTIVE)
                     .build());
-        }
+        });
 
         Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
         statistics.clear();

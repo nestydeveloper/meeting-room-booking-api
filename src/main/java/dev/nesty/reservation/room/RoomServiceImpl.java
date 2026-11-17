@@ -2,7 +2,9 @@ package dev.nesty.reservation.room;
 
 import dev.nesty.reservation.error.ConflictException;
 import dev.nesty.reservation.error.NotFoundException;
+import dev.nesty.reservation.error.SqlStateErrors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,7 +31,7 @@ public class RoomServiceImpl implements RoomService {
         String name = normalizedName(request);
         ensureNameIsAvailable(name);
 
-        return toResponse(roomRepository.save(new Room(null, name)));
+        return toResponse(insert(new Room(null, name)));
     }
 
     @Override
@@ -41,7 +43,32 @@ public class RoomServiceImpl implements RoomService {
         ensureNameIsAvailableForRoom(name, id);
 
         room.setName(name);
-        return toResponse(roomRepository.save(room));
+        return toResponse(saveWithUniqueName(room));
+    }
+
+    private Room insert(Room room) {
+        try {
+            return roomRepository.saveAndFlush(room);
+        } catch (DataIntegrityViolationException ex) {
+            throw translatedUniqueViolation(ex, room.getName());
+        }
+    }
+
+    private Room saveWithUniqueName(Room room) {
+        try {
+            return roomRepository.saveAndFlush(room);
+        } catch (DataIntegrityViolationException ex) {
+            throw translatedUniqueViolation(ex, room.getName());
+        }
+    }
+
+    private static RuntimeException translatedUniqueViolation(DataIntegrityViolationException ex, String name) {
+        // Two concurrent requests can both pass ensureNameIsAvailable; the unique index rejects
+        // the loser, which must be reported as the same conflict as the friendly path.
+        if (SqlStateErrors.is(ex, SqlStateErrors.UNIQUE_VIOLATION)) {
+            return new ConflictException("Room name already exists: " + name);
+        }
+        return ex;
     }
 
     private static String normalizedName(RoomRequest request) {
