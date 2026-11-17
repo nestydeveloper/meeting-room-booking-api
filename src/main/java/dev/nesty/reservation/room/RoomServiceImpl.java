@@ -4,6 +4,8 @@ import dev.nesty.reservation.error.ConflictException;
 import dev.nesty.reservation.error.NotFoundException;
 import dev.nesty.reservation.error.SqlStateErrors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -18,6 +20,7 @@ public class RoomServiceImpl implements RoomService {
     private final RoomRepository roomRepository;
 
     @Override
+    @Cacheable("rooms")
     @Transactional(readOnly = true)
     public List<RoomResponse> findAll() {
         return roomRepository.findAll(Sort.by("name")).stream()
@@ -26,6 +29,7 @@ public class RoomServiceImpl implements RoomService {
     }
 
     @Override
+    @CacheEvict(value = "rooms", allEntries = true)
     @Transactional
     public RoomResponse create(RoomRequest request) {
         String name = normalizedName(request);
@@ -35,6 +39,7 @@ public class RoomServiceImpl implements RoomService {
     }
 
     @Override
+    @CacheEvict(value = "rooms", allEntries = true)
     @Transactional
     public RoomResponse update(Long id, RoomRequest request) {
         Room room = findRoomOrFail(id);

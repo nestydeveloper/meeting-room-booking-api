@@ -13,6 +13,12 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  cache:
+    type: caffeine
+    cache-names: rooms
+    caffeine:
+      # Bounded and self-expiring: the catalogue is tiny, and a stale entry never lives long.
+      spec: maximumSize=200,expireAfterAccess=600s
 
 app:
   security:
