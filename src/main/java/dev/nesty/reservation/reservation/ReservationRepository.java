@@ -2,6 +2,8 @@ package dev.nesty.reservation.reservation;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -11,6 +13,15 @@ import java.time.LocalDateTime;
 
 public interface ReservationRepository
         extends JpaRepository<Reservation, Long>, JpaSpecificationExecutor<Reservation> {
+
+    /**
+     * Redeclared only to attach {@code @EntityGraph}: every listed reservation renders its room
+     * name, so the room is fetched with the page instead of one query per distinct room. The count
+     * query is unaffected, because Spring Data applies fetch graphs to the data query only.
+     */
+    @Override
+    @EntityGraph(attributePaths = "room")
+    Page<Reservation> findAll(Specification<Reservation> spec, Pageable pageable);
 
     /**
      * Half-open overlap: an existing booking clashes when it starts before the new one ends
