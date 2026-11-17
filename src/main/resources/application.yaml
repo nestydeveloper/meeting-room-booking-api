@@ -13,3 +13,10 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+
+app:
+  security:
+    # Demo credentials. The password is a bcrypt hash of "admin"; clients send
+    # admin/admin over HTTP Basic and the encoder compares against this hash.
+    user: ${APP_USER:admin}
+    password: "${APP_PASSWORD:{bcrypt}$2a$10$c/uiBY1hE6i5XS4Nad4/ZePopYJj72FY.fjWT3Rbr5225zn0xw4AG}"
